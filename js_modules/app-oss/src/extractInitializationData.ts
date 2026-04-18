@@ -3,9 +3,18 @@ export const PREFIX_PLACEHOLDER = '__PATH_PREFIX__';
 export const TELEMETRY_PLACEHOLDER = '__TELEMETRY_ENABLED__';
 export const LIVE_DATA_POLL_RATE_PLACEHOLDER = '__LIVE_DATA_POLL_RATE__';
 export const INSTANCE_ID_PLACEHOLDER = '__INSTANCE_ID__';
+export const UI_CONFIG_PLACEHOLDER = '__UI_CONFIG__';
+export const BRANDING_CSS_PLACEHOLDER = '__BRANDING_CSS__';
 
 let value:
-  | {pathPrefix: string; telemetryEnabled: boolean; liveDataPollRate?: number; instanceId: string}
+  | {
+      pathPrefix: string;
+      telemetryEnabled: boolean;
+      liveDataPollRate?: number;
+      instanceId: string;
+      customPages: Record<string, string>;
+      branding: {logoUrl?: string};
+    }
   | undefined = undefined;
 
 // Determine the path prefix value, which is set server-side.
@@ -16,9 +25,17 @@ export const extractInitializationData = (): {
   telemetryEnabled: boolean;
   liveDataPollRate?: number;
   instanceId: string;
+  customPages: Record<string, string>;
+  branding: {logoUrl?: string};
 } => {
   if (!value) {
-    value = {pathPrefix: '', telemetryEnabled: false, instanceId: ''};
+    value = {
+      pathPrefix: '',
+      telemetryEnabled: false,
+      instanceId: '',
+      customPages: {},
+      branding: {},
+    };
     const element = document.getElementById(ELEMENT_ID);
     if (element) {
       const parsed = JSON.parse(element.innerHTML);
@@ -33,6 +50,16 @@ export const extractInitializationData = (): {
       }
       if (parsed.instanceId !== INSTANCE_ID_PLACEHOLDER) {
         value.instanceId = parsed.instanceId;
+      }
+
+      const uiConfig = parsed.uiConfig;
+      if (uiConfig && uiConfig !== UI_CONFIG_PLACEHOLDER) {
+        if (uiConfig.customPages) {
+          value.customPages = uiConfig.customPages;
+        }
+        if (uiConfig.branding) {
+          value.branding = uiConfig.branding;
+        }
       }
     }
   }

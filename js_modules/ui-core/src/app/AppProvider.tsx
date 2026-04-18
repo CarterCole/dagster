@@ -65,6 +65,8 @@ export interface AppProviderProps {
     telemetryEnabled?: boolean;
     statusPolling: Set<DeploymentStatusType>;
     idempotentMutations?: boolean;
+    customPages?: Record<string, string>;
+    branding?: {logoUrl?: string};
   };
 
   // Used for localStorage/IndexedDB caching to be isolated between instances/deployments
@@ -81,6 +83,8 @@ export const AppProvider = (props: AppProviderProps) => {
     telemetryEnabled = false,
     statusPolling,
     idempotentMutations = true,
+    customPages = {},
+    branding = {},
   } = config;
 
   // todo dish: Change `deleteExisting` to true soon. (Current: 1.4.5)
@@ -163,8 +167,10 @@ export const AppProvider = (props: AppProviderProps) => {
       rootServerURI,
       telemetryEnabled,
       localCacheIdPrefix,
+      customPages,
+      branding,
     }),
-    [basePath, rootServerURI, telemetryEnabled, localCacheIdPrefix],
+    [basePath, rootServerURI, telemetryEnabled, localCacheIdPrefix, customPages, branding],
   );
 
   const analytics = React.useMemo(() => dummyAnalytics(), []);

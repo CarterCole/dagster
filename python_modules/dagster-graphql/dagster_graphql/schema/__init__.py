@@ -1,3 +1,5 @@
+from typing import Optional, Sequence
+
 import graphene
 
 from dagster_graphql.schema.roots.mutation import GrapheneMutation
@@ -75,10 +77,33 @@ def types():
     )
 
 
-def create_schema() -> graphene.Schema:
+def create_schema(
+    custom_query: Optional[type] = None,
+    custom_mutation: Optional[type] = None,
+    custom_subscription: Optional[type] = None,
+    additional_types: Optional[Sequence[type]] = None,
+) -> graphene.Schema:
+    query = GrapheneQuery
+    if custom_query:
+        query = type("CombinedQuery", (custom_query, GrapheneQuery), {})
+
+    mutation = GrapheneMutation
+    if custom_mutation:
+        mutation = type("CombinedMutation", (custom_mutation, GrapheneMutation), {})
+
+    subscription = GrapheneSubscription
+    if custom_subscription:
+        subscription = type(
+            "CombinedSubscription", (custom_subscription, GrapheneSubscription), {}
+        )
+
+    all_types = types()
+    if additional_types:
+        all_types = all_types + list(additional_types)
+
     return graphene.Schema(
-        query=GrapheneQuery,
-        mutation=GrapheneMutation,
-        subscription=GrapheneSubscription,
-        types=types(),
+        query=query,
+        mutation=mutation,
+        subscription=subscription,
+        types=all_types,
     )

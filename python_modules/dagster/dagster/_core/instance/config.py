@@ -610,6 +610,26 @@ def dagster_instance_config_schema() -> Mapping[str, Field]:
         ),
         "freshness": Field({"enabled": Field(Bool)}, is_required=False),
         "concurrency": get_concurrency_config(),
+        "webserver": Field(
+            {
+                "branding": Field(
+                    {
+                        "css_override": Field(Noneable(String), is_required=False),
+                        "logo_url": Field(Noneable(String), is_required=False),
+                    },
+                    is_required=False,
+                ),
+                "custom_pages": Field(Permissive(), is_required=False),
+                "graphql": Field(
+                    {
+                        "middleware_module": Field(Noneable(String), is_required=False),
+                        "schema_extension_module": Field(Noneable(String), is_required=False),
+                    },
+                    is_required=False,
+                ),
+            },
+            is_required=False,
+        ),
     }
 
 

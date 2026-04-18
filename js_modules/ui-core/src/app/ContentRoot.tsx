@@ -1,8 +1,10 @@
 import {ErrorBoundary, MainContent} from '@dagster-io/ui-components';
 import {AssetsOverviewRoot} from '@shared/assets/AssetsOverviewRoot';
-import {memo, useEffect, useRef} from 'react';
+import {memo, useContext, useEffect, useRef} from 'react';
 import {Redirect, Switch, useLocation} from 'react-router-dom';
 
+import {AppContext} from './AppContext';
+import {CustomPageRenderer} from './CustomPageRenderer';
 import {Route} from './Route';
 import {AssetFeatureProvider} from '../assets/AssetFeatureContext';
 import {RunsFeedBackfillPage} from '../instance/backfill/RunsFeedBackfillPage';
@@ -27,6 +29,7 @@ const JobsRoot = lazy(() => import('../jobs/JobsRoot'));
 
 export const ContentRoot = memo(() => {
   const {pathname} = useLocation();
+  const {customPages} = useContext(AppContext);
   const main = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -91,6 +94,15 @@ export const ContentRoot = memo(() => {
           <Route path="/deployment">
             <SettingsRoot />
           </Route>
+          {Object.entries(customPages || {}).map(([route, filePath]) => (
+            <Route
+              key={route}
+              path={route}
+              render={(props) => (
+                <CustomPageRenderer {...props} uiPath={route} filePath={filePath} />
+              )}
+            />
+          ))}
           <Route path="*" isNestingRoute>
             <FallthroughRoot />
           </Route>

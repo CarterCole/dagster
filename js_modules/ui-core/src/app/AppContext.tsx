@@ -9,6 +9,8 @@ export type AppContextValue = {
   telemetryEnabled: boolean;
   statusPolling?: Set<DeploymentStatusType>;
   localCacheIdPrefix?: string;
+  customPages?: Record<string, string>;
+  branding?: {logoUrl?: string};
 };
 
 export const AppContext = createContext<AppContextValue>({

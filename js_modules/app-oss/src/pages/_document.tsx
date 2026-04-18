@@ -4,11 +4,13 @@ import path from 'path';
 import {Head, Html, Main, NextScript} from 'next/document';
 
 import {
+  BRANDING_CSS_PLACEHOLDER,
   ELEMENT_ID,
   INSTANCE_ID_PLACEHOLDER,
   LIVE_DATA_POLL_RATE_PLACEHOLDER,
   PREFIX_PLACEHOLDER,
   TELEMETRY_PLACEHOLDER,
+  UI_CONFIG_PLACEHOLDER,
 } from '../extractInitializationData';
 
 function getSecurityPolicy() {
@@ -34,6 +36,7 @@ export default function Document() {
     telemetryEnabled: TELEMETRY_PLACEHOLDER,
     liveDataPollRate: LIVE_DATA_POLL_RATE_PLACEHOLDER,
     instanceId: isDev ? 'dev' : INSTANCE_ID_PLACEHOLDER,
+    uiConfig: UI_CONFIG_PLACEHOLDER,
   };
   const prefix = getPrefix();
   return (
@@ -60,6 +63,7 @@ export default function Document() {
           // format the json...
           dangerouslySetInnerHTML={{__html: JSON.stringify(values, null, 2)}}
         />
+        {BRANDING_CSS_PLACEHOLDER}
         <link rel="manifest" href={`${prefix}/manifest.json`} crossOrigin="use-credentials" />
         <link rel="icon" type="image/png" href={`${prefix}/favicon.png`} />
         <link rel="icon" type="image/svg+xml" href={`${prefix}/favicon.svg`} />

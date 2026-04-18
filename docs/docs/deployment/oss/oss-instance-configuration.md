@@ -67,6 +67,7 @@ To do this, provide a `$DAGSTER_HOME/dagster.yaml` file, which the webserver and
 | Schedule evaluation    | `schedules`              | Controls how schedules are evaluated.                                                                                                           |
 | Auto-materialize       | `auto_materialize`       | Controls how assets are auto-materialized.                                                                                                      |
 | Backfills              | `backfills`              | Controls how backfills are processed.                                                                                                           |
+| Webserver              | `webserver`              | Configures UI branding, custom pages, and GraphQL extensions.                                                                                   |
 
 :::note
 
@@ -394,3 +395,28 @@ To process multiple backfills in parallel simultaneously, set the `use_threads` 
 />
 
 You can also set the optional `num_submit_workers` key to create multiple runs from the same backfill in parallel, which can help decrease latency when a single backfill creates many runs.
+
+### Webserver (Branding & Extensions)
+
+The `webserver` key allows you to configure branding, custom UI pages, and GraphQL extensions for your instance.
+
+| Key | Description |
+| --- | --- |
+| `branding` | Configures CSS overrides and custom logo URLs for the UI. |
+| `custom_pages` | Maps UI routes to local `.md` or `.jsx` files to inject custom content. |
+| `graphql` | Configures schema extension and middleware modules. |
+
+Example configuration:
+
+```yaml
+webserver:
+  branding:
+    logo_url: "https://example.com/logo.png"
+    css_override: "/path/to/custom.css"
+  custom_pages:
+    "/docs": "/path/to/manual.md"
+    "/tools/custom-view": "/path/to/CustomComponent.jsx"
+  graphql:
+    middleware_module: "my_app.auth.RBACMiddleware"
+    schema_extension_module: "my_app.graphql.schema"
+```
