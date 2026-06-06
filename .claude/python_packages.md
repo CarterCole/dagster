@@ -8,6 +8,7 @@ Quick reference for Python packages in the Dagster repository.
 **dagster-graphql**: `python_modules/dagster-graphql`
 **dagster-pipes**: `python_modules/dagster-pipes`
 **dagster-webserver**: `python_modules/dagster-webserver`
+**dagster-cloud**: `python_modules/dagster-cloud`
 **dagit**: `python_modules/dagit`
 
 ## test packages
@@ -42,6 +43,9 @@ Quick reference for Python packages in the Dagster repository.
 
 **dagster-postgres**: `python_modules/libraries/dagster-postgres`
 **dagster-mysql**: `python_modules/libraries/dagster-mysql`
+**dagster-clickhouse**: `python_modules/libraries/dagster-clickhouse`
+**dagster-clickhouse-pandas**: `python_modules/libraries/dagster-clickhouse-pandas`
+**dagster-clickhouse-polars**: `python_modules/libraries/dagster-clickhouse-polars`
 **dagster-duckdb**: `python_modules/libraries/dagster-duckdb`
 **dagster-duckdb-pandas**: `python_modules/libraries/dagster-duckdb-pandas`
 **dagster-duckdb-polars**: `python_modules/libraries/dagster-duckdb-polars`
@@ -66,8 +70,8 @@ Quick reference for Python packages in the Dagster repository.
 **dagster-airbyte**: `python_modules/libraries/dagster-airbyte`
 **dagster-fivetran**: `python_modules/libraries/dagster-fivetran`
 **dagster-sling**: `python_modules/libraries/dagster-sling`
+**dagster-soda**: `python_modules/libraries/dagster-soda`
 **dagster-dlt**: `python_modules/libraries/dagster-dlt`
-**dagster-embedded-elt**: `python_modules/libraries/dagster-embedded-elt`
 **dagster-polytomic**: `python_modules/libraries/dagster-polytomic`
 
 ## migration tools

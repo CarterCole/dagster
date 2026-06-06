@@ -9,6 +9,7 @@ export type AppContextValue = {
   telemetryEnabled: boolean;
   statusPolling?: Set<DeploymentStatusType>;
   localCacheIdPrefix?: string;
+  shouldUseAssetManifestForWorkspace?: boolean;
   customPages?: Record<string, string>;
   branding?: {logoUrl?: string};
 };

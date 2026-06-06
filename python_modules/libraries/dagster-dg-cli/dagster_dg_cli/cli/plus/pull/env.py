@@ -36,7 +36,7 @@ def _get_local_secrets_for_locations(
     secrets_by_location = {location_name: {} for location_name in location_names}
 
     try:
-        result = client.execute(
+        result = client.execute_arbitrary(
             SECRETS_QUERY,
             variables={"onlyViewable": True, "scopes": {"localDeploymentScope": True}},
         )
@@ -59,7 +59,13 @@ def _get_local_secrets_for_locations(
 @dg_path_options
 @cli_telemetry_wrapper
 def pull_env_command(target_path: Path, **global_options: object) -> None:
-    """Pull environment variables from Dagster Plus and save to a .env file for local use."""
+    """Pull environment variables from Dagster Plus and save to a .env file for local use.
+
+    Example::
+
+        $ dg plus pull env
+        Environment variables saved to .env
+    """
     from dagster_rest_resources.gql_client import DagsterPlusGraphQLClient
 
     cli_config = normalize_cli_config(global_options, click.get_current_context())
@@ -77,7 +83,12 @@ def pull_env_command(target_path: Path, **global_options: object) -> None:
             for project_spec in dg_context.project_specs
         ]
 
-    gql_client = DagsterPlusGraphQLClient.from_config(config)
+    gql_client = DagsterPlusGraphQLClient(
+        url=config.organization_url,
+        api_token=config.user_token,
+        organization=config.organization,
+        deployment=config.default_deployment,
+    )
     secrets_by_location = _get_local_secrets_for_locations(
         gql_client, {project_ctx.project_name for project_ctx in project_ctxs}
     )

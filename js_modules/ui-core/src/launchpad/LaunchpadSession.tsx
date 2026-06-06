@@ -1,5 +1,4 @@
 import {
-  Body,
   Box,
   Button,
   ButtonLink,
@@ -10,6 +9,7 @@ import {
   Icon,
   SplitPanelContainer,
   SplitPanelContainerHandle,
+  Text,
   TextInput,
 } from '@dagster-io/ui-components';
 import {
@@ -346,11 +346,13 @@ const LaunchpadSession = (props: LaunchpadSessionProps) => {
                   },
                 ]
               : []),
-            ...(currentSession?.base && (currentSession?.base as any)['presetName']
+            ...(currentSession?.base &&
+            'presetName' in currentSession.base &&
+            currentSession.base.presetName
               ? [
                   {
                     key: DagsterTag.PresetName,
-                    value: (currentSession?.base as any)['presetName'],
+                    value: currentSession.base.presetName,
                   },
                 ]
               : []),
@@ -369,11 +371,11 @@ const LaunchpadSession = (props: LaunchpadSessionProps) => {
   };
 
   const saveTags = (tags: PipelineRunTag[]) => {
-    const tagDict = {};
+    const tagDict: Record<string, string> = {};
     const toSave: PipelineRunTag[] = [];
     tags.forEach((tag: PipelineRunTag) => {
       if (!(tag.key in tagDict)) {
-        (tagDict as any)[tag.key] = tag.value;
+        tagDict[tag.key] = tag.value;
         toSave.push(tag);
       }
     });
@@ -643,14 +645,14 @@ const LaunchpadSession = (props: LaunchpadSessionProps) => {
                 }
               />
               {includedChecks.length > 0 ? (
-                <Body color={Colors.textDefault()}>
+                <Text size={14} color="textDefault">
                   {`Including `}
                   <ButtonLink onClick={() => setShowChecks(includedChecks)}>
                     {`${includedChecks.length.toLocaleString()} ${
                       includedChecks.length > 1 ? 'checks' : 'check'
                     }`}
                   </ButtonLink>
-                </Body>
+                </Text>
               ) : undefined}
               {executableChecks.length > 0 ? (
                 <Checkbox

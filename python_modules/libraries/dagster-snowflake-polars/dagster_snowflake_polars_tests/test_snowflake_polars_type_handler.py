@@ -54,7 +54,7 @@ resource_config = {
 
 IS_BUILDKITE = os.getenv("BUILDKITE") is not None
 HAS_BUILDKITE_SNOWFLAKE_CREDS = bool(os.getenv("SNOWFLAKE_ACCOUNT")) and bool(
-    os.getenv("SNOWFLAKE_BUILDKITE_PASSWORD")
+    os.getenv("SNOWFLAKE_BUILDKITE_PRIVATE_KEY")
 )
 RUN_BUILDKITE_SNOWFLAKE_TESTS = IS_BUILDKITE and HAS_BUILDKITE_SNOWFLAKE_CREDS
 
@@ -62,7 +62,7 @@ RUN_BUILDKITE_SNOWFLAKE_TESTS = IS_BUILDKITE and HAS_BUILDKITE_SNOWFLAKE_CREDS
 SHARED_BUILDKITE_SNOWFLAKE_CONF: Mapping[str, Any] = {
     "account": os.getenv("SNOWFLAKE_ACCOUNT", ""),
     "user": "BUILDKITE",
-    "password": os.getenv("SNOWFLAKE_BUILDKITE_PASSWORD", ""),
+    "private_key": os.getenv("SNOWFLAKE_BUILDKITE_PRIVATE_KEY", ""),
 }
 
 DATABASE = "TEST_SNOWFLAKE_IO_MANAGER"
@@ -124,7 +124,40 @@ def test_handle_output():
             TableSchema(columns=[TableColumn("col1", "String"), TableColumn("col2", "Int64")])
         ),
         "dagster/row_count": 1,
+        "dagster/storage_kind": "snowflake",
     }
+
+
+def test_handle_output_empty_dataframe():
+    handler = SnowflakePolarsTypeHandler()
+    connection = MagicMock()
+    connection.account = "account_abc"
+    connection.user = "user_abc"
+    connection.password = "password_abc"
+    connection.database = "database_abc"
+    connection.schema = "schema_abc"
+    connection.warehouse = "warehouse_abc"
+
+    df = pl.DataFrame({"col1": pl.Series([], dtype=pl.Utf8), "col2": pl.Series([], dtype=pl.Int64)})
+    output_context = build_output_context(
+        resource_config={**resource_config, "time_data_to_string": False}
+    )
+
+    with patch.object(pl.DataFrame, "write_database", MagicMock()) as mock_write_database:
+        handler.handle_output(
+            output_context,
+            TableSlice(
+                table="my_table",
+                schema="my_schema",
+                database="my_db",
+                columns=None,
+                partition_dimensions=[],
+            ),
+            df,
+            connection,
+        )
+
+    mock_write_database.assert_not_called()
 
 
 def test_handle_output_escapes_partition_key_quotes():
@@ -405,7 +438,7 @@ def test_time_window_partitioned_asset(io_manager):
 
         with snowflake_conn.get_connection() as conn:
             out_df = (
-                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             )
             assert out_df["A"].tolist() == ["1", "1", "1"]
 
@@ -418,7 +451,7 @@ def test_time_window_partitioned_asset(io_manager):
 
         with snowflake_conn.get_connection() as conn:
             out_df = (
-                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             )
             assert sorted(out_df["A"].tolist()) == ["1", "1", "1", "2", "2", "2"]
 
@@ -431,7 +464,7 @@ def test_time_window_partitioned_asset(io_manager):
 
         with snowflake_conn.get_connection() as conn:
             out_df = (
-                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             )
             assert sorted(out_df["A"].tolist()) == ["2", "2", "2", "3", "3", "3"]
 
@@ -495,7 +528,7 @@ def test_static_partitioned_asset(io_manager):
         with snowflake_conn.get_connection() as conn:
             out_df = (
                 conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}")
-            ).fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+            ).fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             assert out_df["A"].tolist() == ["1", "1", "1"]
 
         materialize(
@@ -508,7 +541,7 @@ def test_static_partitioned_asset(io_manager):
         with snowflake_conn.get_connection() as conn:
             out_df = (
                 conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}")
-            ).fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+            ).fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             assert sorted(out_df["A"].tolist()) == ["1", "1", "1", "2", "2", "2"]
 
         materialize(
@@ -521,7 +554,7 @@ def test_static_partitioned_asset(io_manager):
         with snowflake_conn.get_connection() as conn:
             out_df = (
                 conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}")
-            ).fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+            ).fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             assert sorted(out_df["A"].tolist()) == ["2", "2", "2", "3", "3", "3"]
 
 
@@ -590,7 +623,7 @@ def test_multi_partitioned_asset(io_manager):
         with snowflake_conn.get_connection() as conn:
             out_df = (
                 conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}")
-            ).fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+            ).fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             assert out_df["A"].tolist() == ["1", "1", "1"]
 
         materialize(
@@ -603,7 +636,7 @@ def test_multi_partitioned_asset(io_manager):
         with snowflake_conn.get_connection() as conn:
             out_df = (
                 conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}")
-            ).fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+            ).fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             assert sorted(out_df["A"].tolist()) == ["1", "1", "1", "2", "2", "2"]
 
         materialize(
@@ -616,7 +649,7 @@ def test_multi_partitioned_asset(io_manager):
         with snowflake_conn.get_connection() as conn:
             out_df = (
                 conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}")
-            ).fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+            ).fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             assert sorted(out_df["A"].tolist()) == ["1", "1", "1", "2", "2", "2", "3", "3", "3"]
 
         materialize(
@@ -629,7 +662,7 @@ def test_multi_partitioned_asset(io_manager):
         with snowflake_conn.get_connection() as conn:
             out_df = (
                 conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}")
-            ).fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+            ).fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             assert sorted(out_df["A"].tolist()) == ["2", "2", "2", "3", "3", "3", "4", "4", "4"]
 
 
@@ -683,7 +716,7 @@ def test_dynamic_partitions(io_manager):
         resource_defs = {"io_manager": io_manager, "fs_io": fs_io_manager}
 
         with instance_for_test() as instance:
-            instance.add_dynamic_partitions(dynamic_fruits.name, ["apple"])  # pyright: ignore[reportArgumentType]
+            instance.add_dynamic_partitions(dynamic_fruits.name, ["apple"])  # ty: ignore[invalid-argument-type]
 
             materialize(
                 [dynamic_partitioned, downstream_partitioned],
@@ -699,11 +732,11 @@ def test_dynamic_partitions(io_manager):
                     .execute(
                         f"SELECT * FROM {snowflake_table_path}",
                     )
-                    .fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+                    .fetch_pandas_all()  # ty: ignore[unresolved-attribute]
                 )
                 assert out_df["A"].tolist() == ["1", "1", "1"]
 
-            instance.add_dynamic_partitions(dynamic_fruits.name, ["orange"])  # pyright: ignore[reportArgumentType]
+            instance.add_dynamic_partitions(dynamic_fruits.name, ["orange"])  # ty: ignore[invalid-argument-type]
 
             materialize(
                 [dynamic_partitioned, downstream_partitioned],
@@ -719,7 +752,7 @@ def test_dynamic_partitions(io_manager):
                     .execute(
                         f"SELECT * FROM {snowflake_table_path}",
                     )
-                    .fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+                    .fetch_pandas_all()  # ty: ignore[unresolved-attribute]
                 )
             assert sorted(out_df["A"].tolist()) == ["1", "1", "1", "2", "2", "2"]
 
@@ -737,7 +770,7 @@ def test_dynamic_partitions(io_manager):
                     .execute(
                         f"SELECT * FROM {snowflake_table_path}",
                     )
-                    .fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+                    .fetch_pandas_all()  # ty: ignore[unresolved-attribute]
                 )
                 assert sorted(out_df["A"].tolist()) == ["2", "2", "2", "3", "3", "3"]
 
@@ -813,7 +846,7 @@ def test_self_dependent_asset(io_manager):
 
         with snowflake_conn.get_connection() as conn:
             out_df = (
-                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             )
             assert sorted(out_df["A"].tolist()) == ["1", "1", "1"]
 
@@ -830,7 +863,7 @@ def test_self_dependent_asset(io_manager):
 
         with snowflake_conn.get_connection() as conn:
             out_df = (
-                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # pyright: ignore[reportOptionalMemberAccess]
+                conn.cursor().execute(f"SELECT * FROM {snowflake_table_path}").fetch_pandas_all()  # ty: ignore[unresolved-attribute]
             )
             assert sorted(out_df["A"].tolist()) == ["1", "1", "1", "2", "2", "2"]
 

@@ -709,7 +709,7 @@ type AssetNode {
   dependedByKeys: [AssetKey!]!
   dependencies: [AssetDependency!]!
   dependencyKeys: [AssetKey!]!
-  description: String
+  description(characterLimit: Int): String
   freshnessInfo: AssetFreshnessInfo
   freshnessPolicy: FreshnessPolicy
   freshnessStatusInfo: FreshnessStatusInfo
@@ -733,11 +733,13 @@ type AssetNode {
   assetPartitionStatuses: AssetPartitionStatuses!
   partitionStats: PartitionStats
   metadataEntries: [MetadataEntry!]!
+  storageAddress: StorageAddress
   tags: [DefinitionTag!]!
   kinds: [String!]!
   op: SolidDefinition
   opName: String
   opNames: [String!]!
+  opTags: [DefinitionTag!]!
   opVersion: String
   partitionDefinition: PartitionDefinition
   partitionKeys: [String!]!
@@ -980,6 +982,11 @@ type PartitionStats {
   numPartitions: Int!
   numFailed: Int!
   numMaterializing: Int!
+}
+
+type StorageAddress {
+  storageKind: String
+  tableName: String!
 }
 
 type DefinitionTag {
@@ -2486,11 +2493,11 @@ type Repository {
   schedules: [Schedule!]!
   sensors(sensorType: SensorType): [Sensor!]!
   assetNodes: [AssetNode!]!
+  assetNodesConnection(cursor: String, limit: Int!): AssetNodeConnection!
+  assetManifest: GenericScalar
   displayMetadata: [RepositoryMetadata!]!
   assetGroups: [AssetGroup!]!
   allTopLevelResourceDetails: [ResourceDetails!]!
-  hasLocationDocs: Boolean!
-  locationDocsJsonOrError: LocationDocsJsonOrError!
 }
 
 type Job implements SolidContainer & IPipelineSnapshot {
@@ -2539,6 +2546,12 @@ enum SensorType {
   AUTO_MATERIALIZE
   AUTOMATION
   UNKNOWN
+}
+
+type AssetNodeConnection {
+  nodes: [AssetNode!]!
+  cursor: String
+  hasMore: Boolean!
 }
 
 type AssetGroup {
@@ -2590,14 +2603,6 @@ type JobWithOps {
   jobName: String!
   opHandleIDs: [String!]!
 }
-
-union LocationDocsJsonOrError = LocationDocsJson | PythonError
-
-type LocationDocsJson {
-  json: JSONString!
-}
-
-scalar JSONString
 
 type RepositoryConnection {
   nodes: [Repository!]!
@@ -3413,7 +3418,7 @@ union RunsOrError = Runs | InvalidPipelineRunsFilterError | PythonError
 
 type Runs implements PipelineRuns {
   results: [Run!]!
-  count: Int
+  count: Int!
 }
 
 interface PipelineRuns {
@@ -3665,6 +3670,61 @@ type UsedSolid {
   invocations: [NodeInvocationSite!]!
 }
 
+type AppManagedComponent {
+  componentId: String!
+  componentType: String!
+  attributes: String!
+}
+
+type AppManagedComponents {
+  locationName: String!
+  components: [AppManagedComponent!]!
+}
+
+union AppManagedComponentsOrError = AppManagedComponents | PythonError
+
+type SetAppManagedComponentSuccess {
+  component: AppManagedComponent!
+}
+
+union SetAppManagedComponentResult = SetAppManagedComponentSuccess | UnauthorizedError | PythonError
+
+type DeleteAppManagedComponentSuccess {
+  locationName: String!
+  componentId: String!
+}
+
+union DeleteAppManagedComponentResult =
+  | DeleteAppManagedComponentSuccess
+  | UnauthorizedError
+  | PythonError
+
+scalar JsonSchema
+
+type ComponentFormSchema {
+  dataSchema: JsonSchema!
+  uiSchema: JsonSchema!
+}
+
+type ComponentTypeInfo {
+  name: String!
+  namespace: String!
+  example: String!
+  schema: JsonSchema
+  formSchema: ComponentFormSchema
+  description: String
+  owners: [String!]
+  tags: [String!]
+  isAppManaged: Boolean!
+}
+
+type ComponentTypes {
+  locationName: String!
+  componentTypes: [ComponentTypeInfo!]!
+}
+
+union ComponentTypesOrError = ComponentTypes | RepositoryLocationNotFound | PythonError
+
 type Query {
   version: String!
   repositoriesOrError(repositorySelector: RepositorySelector): RepositoriesOrError!
@@ -3812,6 +3872,8 @@ type Query {
     cursor: String
   ): [AssetCheckExecution!]!
   latestDefsStateInfo: DefsStateInfo
+  appManagedComponentsForLocationOrError(locationName: String!): AppManagedComponentsOrError!
+  componentTypesForLocationOrError(locationName: String!): ComponentTypesOrError!
 }
 
 union WorkspaceOrError = Workspace | PythonError
@@ -4183,6 +4245,16 @@ type Mutation {
     partitionsDefName: String!
     repositorySelector: RepositorySelector!
   ): DeleteDynamicPartitionsResult!
+  setAppManagedComponent(
+    attributes: String!
+    componentId: String!
+    componentType: String!
+    locationName: String!
+  ): SetAppManagedComponentResult!
+  deleteAppManagedComponent(
+    componentId: String!
+    locationName: String!
+  ): DeleteAppManagedComponentResult!
   setAutoMaterializePaused(paused: Boolean!): Boolean!
   setConcurrencyLimit(concurrencyKey: String!, limit: Int!): Boolean!
   deleteConcurrencyLimit(concurrencyKey: String!): Boolean!
@@ -4203,9 +4275,17 @@ enum ReexecutionStrategy {
   ALL_STEPS
 }
 
-union SensorDryRunResult = PythonError | SensorNotFoundError | DryRunInstigationTick
+union SensorDryRunResult =
+  | PythonError
+  | SensorNotFoundError
+  | UnauthorizedError
+  | DryRunInstigationTick
 
-union ScheduleDryRunResult = DryRunInstigationTick | PythonError | ScheduleNotFoundError
+union ScheduleDryRunResult =
+  | DryRunInstigationTick
+  | PythonError
+  | ScheduleNotFoundError
+  | UnauthorizedError
 
 union TerminateRunsResultOrError = TerminateRunsResult | PythonError
 

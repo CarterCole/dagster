@@ -76,10 +76,23 @@
   Pipeline: my_pipeline
   '''
 # ---
+# name: TestFormatRunLaunchResult.test_format_run_launch_result_json[0]
+  dict({
+    'run_id': '123e4567-e89b-12d3-a456-426614174000',
+    'status': 'STARTED',
+  })
+# ---
+# name: TestFormatRunLaunchResult.test_format_run_launch_result_text[0]
+  '''
+  Run ID: 123e4567-e89b-12d3-a456-426614174000
+  Status: STARTED
+  '''
+# ---
 # name: TestFormatRunsList.test_format_runs_list_empty_json[0]
   dict({
     'items': list([
     ]),
+    'total': 0,
   })
 # ---
 # name: TestFormatRunsList.test_format_runs_list_empty_text[0]
@@ -113,6 +126,7 @@
         'status': 'QUEUED',
       }),
     ]),
+    'total': 3,
   })
 # ---
 # name: TestFormatRunsList.test_format_runs_list_text[0]

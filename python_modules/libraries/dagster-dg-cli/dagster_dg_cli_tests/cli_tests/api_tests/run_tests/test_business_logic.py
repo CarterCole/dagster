@@ -6,8 +6,9 @@ GraphQL client mocking or external dependencies.
 
 import json
 
-from dagster_dg_cli.cli.api.formatters import format_run, format_runs_list
-from dagster_rest_resources.schemas.run import DgApiRun, DgApiRunList, DgApiRunStatus
+from dagster_dg_cli.cli.api.formatters import format_run, format_run_launch_result, format_runs_list
+from dagster_rest_resources.schemas.enums import DgApiRunStatus
+from dagster_rest_resources.schemas.run import DgApiRun, DgApiRunLaunchResult, DgApiRunList
 from dagster_shared.utils.timing import fixed_timezone
 
 
@@ -150,6 +151,7 @@ class TestFormatRunsList:
                     job_name=None,
                 ),
             ],
+            total=3,
         )
 
     def test_format_runs_list_text(self, snapshot):
@@ -168,13 +170,32 @@ class TestFormatRunsList:
 
     def test_format_runs_list_empty_text(self, snapshot):
         """Test formatting empty runs list as text."""
-        runs_list = DgApiRunList(items=[])
+        runs_list = DgApiRunList(items=[], total=0)
         result = format_runs_list(runs_list, as_json=False)
         snapshot.assert_match(result)
 
     def test_format_runs_list_empty_json(self, snapshot):
         """Test formatting empty runs list as JSON."""
-        runs_list = DgApiRunList(items=[])
+        runs_list = DgApiRunList(items=[], total=0)
         result = format_runs_list(runs_list, as_json=True)
+        parsed = json.loads(result)
+        snapshot.assert_match(parsed)
+
+
+class TestFormatRunLaunchResult:
+    """Test the run launch result formatting."""
+
+    def _create_launch_result(self) -> DgApiRunLaunchResult:
+        return DgApiRunLaunchResult(
+            run_id="123e4567-e89b-12d3-a456-426614174000",
+            status=DgApiRunStatus.STARTED,
+        )
+
+    def test_format_run_launch_result_text(self, snapshot):
+        result = format_run_launch_result(self._create_launch_result(), as_json=False)
+        snapshot.assert_match(result)
+
+    def test_format_run_launch_result_json(self, snapshot):
+        result = format_run_launch_result(self._create_launch_result(), as_json=True)
         parsed = json.loads(result)
         snapshot.assert_match(parsed)
