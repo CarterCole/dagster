@@ -67,6 +67,7 @@ To do this, provide a `$DAGSTER_HOME/dagster.yaml` file, which the webserver and
 | Schedule evaluation    | `schedules`              | Controls how schedules are evaluated.                                                                                                           |
 | Auto-materialize       | `auto_materialize`       | Controls how assets are auto-materialized.                                                                                                      |
 | Backfills              | `backfills`              | Controls how backfills are processed.                                                                                                           |
+| Webserver              | `webserver`              | Configures UI branding, custom pages, and GraphQL extensions.                                                                                   |
 
 :::note
 
@@ -394,3 +395,104 @@ To process multiple backfills in parallel simultaneously, set the `use_threads` 
 />
 
 You can also set the optional `num_submit_workers` key to create multiple runs from the same backfill in parallel, which can help decrease latency when a single backfill creates many runs.
+
+### Webserver (Branding & Extensions)
+
+The `webserver` key allows you to configure branding, custom UI pages, and GraphQL extensions for your instance.
+
+| Key            | Description                                                                                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `branding`     | Configures CSS overrides and custom logo URLs for the UI.                                                                                                                           |
+| `custom_pages` | Maps UI routes to local `.md` or `.jsx` files to inject custom content.                                                                                                             |
+| `graphql`      | Configures schema extension and middleware modules.                                                                                                                                 |
+| `auth`         | Requires sign-in with an OIDC provider such as Okta, and restricts access by role. See [Webserver authentication and access control](#webserver-authentication-and-access-control). |
+
+Example configuration:
+
+```yaml
+webserver:
+  branding:
+    logo_url: 'https://example.com/logo.png'
+    css_override: '/path/to/custom.css'
+  custom_pages:
+    '/docs': '/path/to/manual.md'
+    '/tools/custom-view': '/path/to/CustomComponent.jsx'
+  graphql:
+    middleware_module: 'my_app.auth.RBACMiddleware'
+    schema_extension_module: 'my_app.graphql.schema'
+```
+
+### Webserver authentication and access control
+
+The `webserver.auth` key requires people to sign in to the Dagster UI with an OpenID Connect (OIDC) provider such as Okta. It also restricts what each person can see and do, based on their email address or identity provider groups. When `auth` is set:
+
+- Every page, GraphQL request, and websocket connection requires a signed-in session. `/server_info` stays public for health checks.
+- Launch, re-execute, terminate, and other actions are allowed or disabled per code location, and the UI disables buttons for actions a person can't take.
+- Runs from code locations a person can't view are hidden from run lists, run pages, logs, and log downloads.
+- Admins manage who has access under **Deployment > Access control**. The policy is stored in the instance database, so every webserver sharing the instance uses it.
+
+```yaml
+webserver:
+  auth:
+    oidc:
+      issuer: https://your-org.okta.com/oauth2/default
+      client_id:
+        env: OKTA_CLIENT_ID
+      client_secret:
+        env: OKTA_CLIENT_SECRET
+      # Optional. Defaults to <webserver URL>/auth/callback. Set this when the webserver runs
+      # behind a proxy or load balancer.
+      redirect_uri: https://dagster.example.com/auth/callback
+      # Optional. Defaults to [openid, profile, email].
+      scopes: [openid, profile, email]
+      # Optional. The claim holding the user's groups. Defaults to `groups`.
+      groups_claim: groups
+    # At least 32 characters. Generate one with:
+    # python -c 'import secrets; print(secrets.token_urlsafe(48))'
+    session_secret:
+      env: DAGSTER_SESSION_SECRET
+    # Optional. Defaults to 12 hours.
+    session_max_age_seconds: 43200
+    # Optional. Defaults to true. Set to false only for local testing over plain HTTP.
+    secure_cookies: true
+    # People who are always admins, regardless of the access policy.
+    admin_users: [platform-lead@example.com]
+    admin_groups: [dagster-admins]
+```
+
+Use the same `session_secret` on every webserver replica, so sessions stay valid whichever replica serves a request.
+
+#### Roles
+
+Each rule in the access policy grants a user or group a role on specific code locations, or on all of them. A person gets the highest role that any matching rule grants them. The policy's default role applies to everyone who signs in.
+
+| Role      | Can                                                                                                              |
+| --------- | ---------------------------------------------------------------------------------------------------------------- |
+| No access | Nothing. Runs are hidden.                                                                                        |
+| Viewer    | See runs and their logs.                                                                                         |
+| Launcher  | Also launch, re-execute, and terminate runs, and launch and cancel backfills.                                    |
+| Editor    | Also start and stop schedules and sensors, wipe assets, and edit partitions.                                     |
+| Admin     | Everything on all code locations, and manage the access policy. On a single code location, admin acts as editor. |
+
+Runs whose code location isn't known, such as runs created with `execute_in_process`, are only visible to people with at least the viewer role on all code locations.
+
+Starting the webserver with `--read-only` still disables all actions, whatever a person's role.
+
+#### Set up Okta
+
+1. In the Okta Admin Console, go to **Applications > Applications > Create App Integration**. Choose **OIDC - OpenID Connect** and **Web Application**.
+2. Under **Grant type**, keep **Authorization Code** selected.
+3. Set **Sign-in redirect URIs** to `https://<your Dagster URL>/auth/callback`.
+4. Under **Assignments**, choose the groups allowed to sign in to Dagster.
+5. Copy the **Client ID** and **Client secret** into the `client_id` and `client_secret` settings.
+6. Add a `groups` claim so Dagster receives each person's groups:
+   - **Custom authorization server** (issuer `https://<org>.okta.com/oauth2/default` or another custom server): go to **Security > API > Authorization Servers**, select the server, and on the **Claims** tab add a claim named `groups`. Include it in the **ID Token** **Always**, set **Value type** to **Groups**, and use a filter such as **Starts with** `dagster-`.
+   - **Org authorization server** (issuer `https://<org>.okta.com`): on the app's **Sign On** tab, edit **OpenID Connect ID Token** and set a **Groups claim filter**. Then add `groups` to `scopes`.
+
+:::note
+
+Limit the groups claim to the groups Dagster uses. Group membership is stored in the session cookie, and browsers reject cookies larger than about 4 KB. People who belong to many groups may otherwise be unable to sign in.
+
+:::
+
+Signing out ends the Dagster session only. The person stays signed in to Okta, so signing in again doesn't prompt for credentials.

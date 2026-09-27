@@ -54,6 +54,10 @@ const idempotencyLink = new ApolloLink((operation, forward) => {
 
 const httpStatusCodesToRetry = new Set([502, 503, 504, 429, 409]);
 
+const EMPTY_CUSTOM_PAGES: Record<string, string> = {};
+const EMPTY_BRANDING: {logoUrl?: string} = {};
+const ACCESS_CONTROL_DISABLED = {enabled: false};
+
 export interface AppProviderProps {
   children: React.ReactNode;
   appCache: InMemoryCache;
@@ -65,6 +69,9 @@ export interface AppProviderProps {
     telemetryEnabled?: boolean;
     statusPolling: Set<DeploymentStatusType>;
     idempotentMutations?: boolean;
+    customPages?: Record<string, string>;
+    branding?: {logoUrl?: string};
+    accessControl?: {enabled: boolean};
   };
 
   // Used for localStorage/IndexedDB caching to be isolated between instances/deployments
@@ -86,6 +93,9 @@ export const AppProvider = (props: AppProviderProps) => {
     telemetryEnabled = false,
     statusPolling,
     idempotentMutations = true,
+    customPages = EMPTY_CUSTOM_PAGES,
+    branding = EMPTY_BRANDING,
+    accessControl = ACCESS_CONTROL_DISABLED,
   } = config;
 
   // todo dish: Change `deleteExisting` to true soon. (Current: 1.4.5)
@@ -170,6 +180,9 @@ export const AppProvider = (props: AppProviderProps) => {
       telemetryEnabled,
       localCacheIdPrefix,
       shouldUseAssetManifestForWorkspace,
+      customPages,
+      branding,
+      accessControl,
     }),
     [
       basePath,
@@ -177,6 +190,9 @@ export const AppProvider = (props: AppProviderProps) => {
       telemetryEnabled,
       localCacheIdPrefix,
       shouldUseAssetManifestForWorkspace,
+      customPages,
+      branding,
+      accessControl,
     ],
   );
 

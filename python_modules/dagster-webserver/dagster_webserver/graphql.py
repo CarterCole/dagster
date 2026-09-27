@@ -16,12 +16,14 @@ from graphql import (
     ASTValidationRule,
     GraphQLError,
     GraphQLFormattedError,
+    OperationType,
     execute,
     parse,
     specified_rules,
     validate,
 )
 from graphql.execution import ExecutionResult
+from graphql.utilities import get_operation_ast
 from starlette import status
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
@@ -72,6 +74,25 @@ class GraphQLServer(ABC, Generic[TRequestContext]):
 
     def build_graphql_validation_rules(self) -> Collection[type[ASTValidationRule]]:
         return specified_rules
+
+    @property
+    def allow_mutations_over_get(self) -> bool:
+        """Servers authenticating with cookies should return False, since browsers send cookies on
+        cross-site GET navigations, which would make GET mutations forgeable.
+        """
+        return True
+
+    def check_subscription(
+        self,
+        request_context: TRequestContext,
+        query: str,
+        variables: dict[str, Any] | None,
+        operation_name: str | None,
+    ) -> GraphQLFormattedError | None:
+        """Hook to refuse a subscription before it starts. Subscriptions don't run through GraphQL
+        middleware, so servers that authorize in middleware need to check them here.
+        """
+        return None
 
     @abstractmethod
     def build_middleware(self) -> list[Middleware]: ...
@@ -154,6 +175,15 @@ class GraphQLServer(ABC, Generic[TRequestContext]):
             return PlainTextResponse(
                 "No GraphQL query found in the request",
                 status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (
+            request.method == "GET"
+            and not self.allow_mutations_over_get
+            and _is_mutation(query, operation_name)
+        ):
+            return PlainTextResponse(
+                "Mutations must be sent with POST", status_code=status.HTTP_405_METHOD_NOT_ALLOWED
             )
 
         if isinstance(variables, str):
@@ -336,6 +366,12 @@ class GraphQLServer(ABC, Generic[TRequestContext]):
         operation_name: str | None,
     ) -> tuple[Task | None, GraphQLFormattedError | None]:
         with self.request_context(websocket) as request_context:
+            error_payload = self.check_subscription(
+                request_context, query, variables, operation_name
+            )
+            if error_payload:
+                return None, error_payload
+
             try:
                 async_result = await self._graphene_schema.subscribe(
                     query,
@@ -444,3 +480,11 @@ async def _send_message(
         and websocket.application_state != WebSocketState.DISCONNECTED
     ):
         await websocket.send_json(data)
+
+
+def _is_mutation(query: str, operation_name: str | None) -> bool:
+    try:
+        operation = get_operation_ast(parse(query), operation_name)
+    except GraphQLError:
+        return False  # the normal execution path reports the syntax error
+    return operation is not None and operation.operation == OperationType.MUTATION

@@ -481,6 +481,7 @@ class InstanceRef(
             "auto_materialize",
             "concurrency",
             "freshness",
+            "webserver",
         }
         settings = {key: config_value.get(key) for key in settings_keys if config_value.get(key)}
 

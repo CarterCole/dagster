@@ -10,6 +10,9 @@ export type AppContextValue = {
   statusPolling?: Set<DeploymentStatusType>;
   localCacheIdPrefix?: string;
   shouldUseAssetManifestForWorkspace?: boolean;
+  customPages?: Record<string, string>;
+  branding?: {logoUrl?: string};
+  accessControl?: {enabled: boolean};
 };
 
 export const AppContext = createContext<AppContextValue>({

@@ -1,7 +1,8 @@
 import {Tabs} from '@dagster-io/ui-components';
-import {useMemo} from 'react';
+import {useContext, useMemo} from 'react';
 import {useLocation} from 'react-router-dom';
 
+import {AppContext} from '../app/AppContext';
 import {TabLink} from '../ui/TabLink';
 
 const items = [
@@ -27,16 +28,27 @@ const items = [
   },
 ];
 
+const accessControlItem = {
+  key: 'access',
+  label: 'Access control',
+  path: '/deployment/access',
+};
+
 export const SettingsTabs = () => {
   const {pathname} = useLocation();
+  const {accessControl} = useContext(AppContext);
+  const visibleItems = useMemo(
+    () => (accessControl?.enabled ? [...items, accessControlItem] : items),
+    [accessControl],
+  );
   const selectedTabId = useMemo(() => {
-    const match = items.find((item) => pathname.startsWith(item.path));
+    const match = visibleItems.find((item) => pathname.startsWith(item.path));
     return match?.key;
-  }, [pathname]);
+  }, [pathname, visibleItems]);
 
   return (
     <Tabs selectedTabId={selectedTabId}>
-      {items.map((item) => (
+      {visibleItems.map((item) => (
         <TabLink key={item.key} id={item.key} to={item.path} title={item.label} />
       ))}
     </Tabs>

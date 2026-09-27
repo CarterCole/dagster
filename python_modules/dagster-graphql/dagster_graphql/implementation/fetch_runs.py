@@ -140,6 +140,7 @@ def get_runs(
 
     instance = graphene_info.context.instance
     limit = get_default_run_records_limit(instance, filters, limit)
+    filters = graphene_info.context.scope_runs_filter(filters)
 
     return [
         GrapheneRun(record)
@@ -158,6 +159,7 @@ def get_run_ids(
     check.opt_int_param(limit, "limit")
 
     instance = graphene_info.context.instance
+    filters = graphene_info.context.scope_runs_filter(filters)
 
     return instance.get_run_ids(filters=filters, cursor=cursor, limit=limit)
 
@@ -314,6 +316,7 @@ def _get_in_progress_runs_for_assets(
 
 
 def get_runs_count(graphene_info: "ResolveInfo", filters: RunsFilter | None) -> int:
+    filters = graphene_info.context.scope_runs_filter(filters)
     return graphene_info.context.instance.get_runs_count(filters)
 
 
@@ -567,6 +570,7 @@ def get_runs_feed_entries(
     check.opt_inst_param(filters, "filters", RunsFilter)
 
     instance = graphene_info.context.instance
+    filters = graphene_info.context.scope_runs_filter(filters)
     runs_feed_cursor = RunsFeedCursor.from_string(cursor)
     # In the default "ROOTS" run feed, we exclude runs that are part of backfills. If
     # the user chooses the "RUNS" view, we want to flatten backfills into their runs.
@@ -681,6 +685,7 @@ def get_runs_feed_count(
 ) -> int:
     from dagster_graphql.schema.runs_feed import GrapheneRunsFeedView
 
+    filters = graphene_info.context.scope_runs_filter(filters)
     # In the default "ROOTS" run feed, we exclude runs that are part of backfills. If
     # the user chooses the "RUNS" view, we want to flatten backfills into their runs.
     exclude_subruns = view == GrapheneRunsFeedView.ROOTS

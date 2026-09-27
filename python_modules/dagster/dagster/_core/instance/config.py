@@ -610,6 +610,51 @@ def dagster_instance_config_schema() -> Mapping[str, Field]:
         ),
         "freshness": Field({"enabled": Field(Bool)}, is_required=False),
         "concurrency": get_concurrency_config(),
+        "webserver": Field(
+            {
+                "branding": Field(
+                    {
+                        "css_override": Field(Noneable(String), is_required=False),
+                        "logo_url": Field(Noneable(String), is_required=False),
+                    },
+                    is_required=False,
+                ),
+                "custom_pages": Field(Permissive(), is_required=False),
+                "graphql": Field(
+                    {
+                        "middleware_module": Field(Noneable(String), is_required=False),
+                        "schema_extension_module": Field(Noneable(String), is_required=False),
+                    },
+                    is_required=False,
+                ),
+                "auth": Field(
+                    {
+                        "enabled": Field(BoolSource, is_required=False),
+                        "oidc": Field(
+                            {
+                                "issuer": Field(StringSource),
+                                "client_id": Field(StringSource),
+                                "client_secret": Field(StringSource, is_required=False),
+                                "redirect_uri": Field(StringSource, is_required=False),
+                                "scopes": Field(Array(String), is_required=False),
+                                "groups_claim": Field(String, is_required=False),
+                            }
+                        ),
+                        "session_secret": Field(StringSource),
+                        "session_max_age_seconds": Field(IntSource, is_required=False),
+                        "secure_cookies": Field(BoolSource, is_required=False),
+                        "admin_users": Field(Array(String), is_required=False),
+                        "admin_groups": Field(Array(String), is_required=False),
+                    },
+                    is_required=False,
+                    description=(
+                        "Sign in to the webserver with an OpenID Connect provider such as Okta,"
+                        " and restrict what each user can see and do by role."
+                    ),
+                ),
+            },
+            is_required=False,
+        ),
     }
 
 

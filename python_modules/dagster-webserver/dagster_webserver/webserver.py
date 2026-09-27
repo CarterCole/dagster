@@ -3,7 +3,7 @@ import io
 import mimetypes
 import uuid
 from os import listdir, path
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 import dagster._check as check
 from dagster import __version__ as dagster_version
@@ -13,12 +13,18 @@ from dagster._core.storage.cloud_storage_compute_log_manager import CloudStorage
 from dagster._core.storage.compute_log_manager import ComputeIOType
 from dagster._core.storage.local_compute_log_manager import LocalComputeLogManager
 from dagster._core.storage.runs.sql_run_storage import SqlRunStorage
-from dagster._core.workspace.context import BaseWorkspaceRequestContext, IWorkspaceProcessContext
+from dagster._core.workspace.context import (
+    BaseWorkspaceRequestContext,
+    IWorkspaceProcessContext,
+    WorkspaceRequestContext,
+)
+from dagster._serdes import class_from_code_pointer
 from dagster._utils import Counter, traced_counter
 from dagster_graphql import __version__ as dagster_graphql_version
 from dagster_graphql.schema import create_schema
 from dagster_shared.seven import json
 from graphene import Schema
+from graphql import GraphQLFormattedError
 from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
@@ -35,6 +41,10 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.types import Message
 
+from dagster_webserver.auth.app import AuthenticationMiddleware, WebserverAuth
+from dagster_webserver.auth.config import load_auth_config
+from dagster_webserver.auth.context import AccessControlledWorkspaceRequestContext
+from dagster_webserver.auth.graphql import RunVisibilityMiddleware, run_id_from_log_key
 from dagster_webserver.external_assets import (
     handle_report_asset_check_request,
     handle_report_asset_materialization_request,
@@ -66,22 +76,125 @@ class DagsterWebserver(
         self._process_context = process_context
         self._live_data_poll_rate = live_data_poll_rate
         self._uses_app_path_prefix = uses_app_path_prefix
+        auth_config = load_auth_config(self._get_webserver_config())
+        self._auth = (
+            WebserverAuth(
+                auth_config,
+                instance=process_context.instance,
+                app_path_prefix=app_path_prefix,
+                get_location_names=lambda: (
+                    self._process_context.create_request_context().code_location_names
+                ),
+            )
+            if auth_config
+            else None
+        )
+        self._run_visibility_middleware: RunVisibilityMiddleware | None = None
         super().__init__(app_path_prefix)
 
+    def _get_webserver_config(self):
+        return self._process_context.instance.get_settings("webserver") or {}
+
     def build_graphql_schema(self) -> Schema:
-        return create_schema()
+        config = self._get_webserver_config().get("graphql", {})
+        schema_mod = config.get("schema_extension_module")
+        
+        custom_query = None
+        custom_mutation = None
+        custom_subscription = None
+        additional_types = None
+        
+        if schema_mod:
+            try:
+                custom_query = class_from_code_pointer(schema_mod, "Query")
+            except Exception:
+                pass
+            try:
+                custom_mutation = class_from_code_pointer(schema_mod, "Mutation")
+            except Exception:
+                pass
+            try:
+                custom_subscription = class_from_code_pointer(schema_mod, "Subscription")
+            except Exception:
+                pass
+            try:
+                additional_types = class_from_code_pointer(schema_mod, "types")
+            except Exception:
+                pass
+
+        return create_schema(
+            custom_query=custom_query,
+            custom_mutation=custom_mutation,
+            custom_subscription=custom_subscription,
+            additional_types=additional_types,
+        )
 
     def build_graphql_middleware(self) -> list:
+        middleware = []
+        if self._auth:
+            # Runs first, so custom middleware never sees runs hidden from the viewer.
+            self._run_visibility_middleware = RunVisibilityMiddleware(
+                self._graphene_schema.graphql_schema
+            )
+            middleware.append(self._run_visibility_middleware)
+        return middleware + self._build_custom_graphql_middleware()
+
+    def _build_custom_graphql_middleware(self) -> list:
+        config = self._get_webserver_config().get("graphql", {})
+        middleware_mod = config.get("middleware_module")
+        if middleware_mod:
+            try:
+                middleware_class = class_from_code_pointer(middleware_mod, "Middleware")
+                return [middleware_class()]
+            except Exception:
+                # Could be a list of middlewares or just a module with 'middlewares' list
+                try:
+                    return class_from_code_pointer(middleware_mod, "middlewares")
+                except Exception:
+                    pass
         return []
+
+    @property
+    def allow_mutations_over_get(self) -> bool:
+        return self._auth is None
+
+    def check_subscription(
+        self,
+        request_context: TRequestContext,
+        query: str,
+        variables: dict[str, Any] | None,
+        operation_name: str | None,
+    ) -> GraphQLFormattedError | None:
+        if self._run_visibility_middleware is None:
+            return None
+        return self._run_visibility_middleware.check_subscription(
+            request_context, query, variables, operation_name
+        )
 
     def relative_path(self, rel: str) -> str:
         return path.join(path.dirname(__file__), rel)
 
     def _make_request_context(self, conn: HTTPConnection) -> TRequestContext:
-        return self._process_context.create_request_context(conn)
+        context = self._process_context.create_request_context(conn)
+        if self._auth is None:
+            return context
+        check.inst(
+            context,
+            WorkspaceRequestContext,
+            "Webserver authentication requires a WorkspaceRequestContext.",
+        )
+        return cast(
+            "TRequestContext",
+            AccessControlledWorkspaceRequestContext.from_request_context(
+                context, self._auth.access_for_connection(conn)
+            ),
+        )
 
     def build_middleware(self) -> list[Middleware]:
-        return [Middleware(DagsterTracedCounterMiddleware)]
+        middleware = [Middleware(DagsterTracedCounterMiddleware)]
+        if self._auth:
+            middleware.append(Middleware(AuthenticationMiddleware, auth=self._auth))
+        return middleware
 
     def make_security_headers(self) -> dict:
         return {
@@ -120,7 +233,9 @@ class DagsterWebserver(
         run_id = request.path_params["run_id"]
         with self.request_context(request) as context:
             run = context.instance.get_run_by_id(run_id)
-            debug_payload = DebugRunPayload.build(context.instance, run)  # type: ignore  # (possible none)
+            if run is None or not context.can_view_run(run):
+                raise HTTPException(404, detail=f"Run {run_id} could not be found.")
+            debug_payload = DebugRunPayload.build(context.instance, run)
 
             result = io.BytesIO()
             with gzip.GzipFile(fileobj=result, mode="wb") as file:
@@ -161,6 +276,11 @@ class DagsterWebserver(
     async def download_captured_logs_endpoint(self, request: Request):
         [*log_key, file_extension] = request.path_params["path"].split("/")
         with self.request_context(request) as context:
+            if run_id := run_id_from_log_key(log_key):
+                run = context.instance.get_run_by_id(run_id)
+                if run and not context.can_view_run(run):
+                    raise HTTPException(404, detail="No log files available for download")
+
             compute_log_manager = context.instance.compute_log_manager
 
             if not isinstance(
@@ -219,6 +339,25 @@ class DagsterWebserver(
                         **{"Content-Security-Policy": self.make_csp_header(nonce)},
                         **self.make_security_headers(),
                     }
+                    webserver_config = self._get_webserver_config()
+                    branding_config = webserver_config.get("branding", {})
+                    css_override = branding_config.get("css_override")
+
+                    branding_css = (
+                        f'<link rel="stylesheet" type="text/css" href="{self._app_path_prefix}/api/branding.css" />'
+                        if css_override
+                        else ""
+                    )
+
+                    custom_pages = webserver_config.get("custom_pages", {})
+                    ui_config = {
+                        "customPages": custom_pages,
+                        "branding": {
+                            "logoUrl": branding_config.get("logo_url"),
+                        },
+                        "accessControl": {"enabled": self._auth is not None},
+                    }
+
                     content = (
                         rendered_template.replace(
                             "BUILDTIME_ASSETPREFIX_REPLACE_ME",
@@ -231,6 +370,8 @@ class DagsterWebserver(
                             str(context.instance.telemetry_enabled).lower(),
                         )
                         .replace("NONCE-PLACEHOLDER", nonce)
+                        .replace('"__UI_CONFIG__"', json.dumps(ui_config))
+                        .replace("__BRANDING_CSS__", branding_css)
                     )
 
                     if self._live_data_poll_rate:
@@ -301,6 +442,9 @@ class DagsterWebserver(
             [
                 Route("/server_info", self.webserver_info_endpoint),
                 Route("/dagit_info", self.webserver_info_endpoint),
+                Route("/api/branding.css", self.get_branding_css),
+                Route("/api/custom_page", self.get_custom_page_content),
+                *(self._auth.build_routes() if self._auth else []),
                 Route(
                     "/graphql",
                     self.graphql_http_endpoint,
@@ -363,6 +507,23 @@ class DagsterWebserver(
             ]
         else:
             return routes
+
+    async def get_custom_page_content(self, request: Request):
+        ui_path = request.query_params.get("uiPath")
+        config = self._get_webserver_config().get("custom_pages", {})
+        file_path = config.get(ui_path)
+        if not file_path or not path.exists(file_path):
+            raise HTTPException(404, detail="Custom page not found")
+
+        with open(file_path, encoding="utf8") as f:
+            return PlainTextResponse(f.read())
+
+    async def get_branding_css(self, _request: Request):
+        config = self._get_webserver_config().get("branding", {})
+        css_file = config.get("css_override")
+        if not css_file or not path.exists(css_file):
+            return PlainTextResponse("", media_type="text/css")
+        return FileResponse(css_file, media_type="text/css")
 
 
 class DagsterTracedCounterMiddleware:
