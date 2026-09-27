@@ -12,6 +12,7 @@ export type AppContextValue = {
   shouldUseAssetManifestForWorkspace?: boolean;
   customPages?: Record<string, string>;
   branding?: {logoUrl?: string};
+  accessControl?: {enabled: boolean};
 };
 
 export const AppContext = createContext<AppContextValue>({

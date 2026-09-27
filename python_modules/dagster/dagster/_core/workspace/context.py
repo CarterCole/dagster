@@ -106,6 +106,7 @@ from dagster._utils.error import SerializableErrorInfo, serializable_error_info_
 
 if TYPE_CHECKING:
     from dagster._core.definitions.assets.graph.remote_asset_graph import RemoteWorkspaceAssetGraph
+    from dagster._core.storage.dagster_run import DagsterRun, RunsFilter
 
 T = TypeVar("T")
 
@@ -218,6 +219,18 @@ class BaseWorkspaceRequestContext(LoadingContext):
 
     @abstractmethod
     def was_permission_checked(self, permission: str) -> bool: ...
+
+    def scope_runs_filter(self, filters: Optional["RunsFilter"]) -> Optional["RunsFilter"]:
+        """Narrows a runs query to the runs the viewer of this request is allowed to see.
+
+        The default context places no restriction on run visibility. Request contexts that enforce
+        per-viewer access control override this.
+        """
+        return filters
+
+    def can_view_run(self, run: "DagsterRun") -> bool:
+        """Whether the viewer of this request is allowed to see the given run."""
+        return True
 
     def has_permission_for_selector(
         self,

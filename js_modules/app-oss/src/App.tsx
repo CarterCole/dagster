@@ -11,12 +11,24 @@ import {RecoilRoot} from 'recoil';
 
 import {CommunityNux} from './NUX/CommunityNux';
 import {extractInitializationData} from './extractInitializationData';
+import {sessionExpiredLink} from './sessionExpiredLink';
 import {telemetryLink} from './telemetryLink';
 
-const {pathPrefix, telemetryEnabled, liveDataPollRate, instanceId, customPages, branding} =
-  extractInitializationData();
+const {
+  pathPrefix,
+  telemetryEnabled,
+  liveDataPollRate,
+  instanceId,
+  customPages,
+  branding,
+  accessControl,
+} = extractInitializationData();
 
 const apolloLinks = [logLink, createErrorLink(true), timeStartLink];
+
+if (accessControl.enabled) {
+  apolloLinks.unshift(sessionExpiredLink);
+}
 
 if (telemetryEnabled) {
   apolloLinks.unshift(telemetryLink(pathPrefix));
@@ -34,6 +46,7 @@ const config = {
   idempotentMutations: false,
   customPages,
   branding,
+  accessControl,
 };
 
 const appCache = createAppCache();

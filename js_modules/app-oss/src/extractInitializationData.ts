@@ -14,6 +14,7 @@ let value:
       instanceId: string;
       customPages: Record<string, string>;
       branding: {logoUrl?: string};
+      accessControl: {enabled: boolean};
     }
   | undefined = undefined;
 
@@ -27,6 +28,7 @@ export const extractInitializationData = (): {
   instanceId: string;
   customPages: Record<string, string>;
   branding: {logoUrl?: string};
+  accessControl: {enabled: boolean};
 } => {
   if (!value) {
     value = {
@@ -35,6 +37,7 @@ export const extractInitializationData = (): {
       instanceId: '',
       customPages: {},
       branding: {},
+      accessControl: {enabled: false},
     };
     const element = document.getElementById(ELEMENT_ID);
     if (element) {
@@ -59,6 +62,9 @@ export const extractInitializationData = (): {
         }
         if (uiConfig.branding) {
           value.branding = uiConfig.branding;
+        }
+        if (uiConfig.accessControl) {
+          value.accessControl = uiConfig.accessControl;
         }
       }
     }

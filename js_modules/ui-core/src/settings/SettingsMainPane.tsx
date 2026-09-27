@@ -2,6 +2,7 @@ import {Box} from '@dagster-io/ui-components';
 import {Redirect, Switch} from 'react-router-dom';
 
 import {Route} from '../app/Route';
+import {AccessControlPageContent} from '../instance/AccessControlPage';
 import {CodeLocationsPageContent} from '../instance/CodeLocationsPage';
 import {InstanceConcurrencyPageContent} from '../instance/InstanceConcurrency';
 import {InstanceConfigContent} from '../instance/InstanceConfig';
@@ -22,6 +23,9 @@ export const SettingsMainPane = () => {
         </Route>
         <Route path="/deployment/config">
           <InstanceConfigContent />
+        </Route>
+        <Route path="/deployment/access">
+          <AccessControlPageContent />
         </Route>
         <Route path="*" isNestingRoute>
           <Redirect to="/deployment/locations" />
